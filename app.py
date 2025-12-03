@@ -25,7 +25,7 @@ MODELS = {
         "seq_len": 1
     },
     "CNN J1": {
-        "path": "cnn_j1_model_5 (2).h5",
+        "path": "cnn_j1_model_5.h5",
         "seq_len": 30
     }
 }
