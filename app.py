@@ -2,10 +2,12 @@ import streamlit as st
 import numpy as np
 import json
 import os
+import tensorflow as tf
 
 # ============================================================
 # 🧩 Import sécurisé de TensorFlow (sinon stop)
 # ============================================================
+st.write("✅ TensorFlow version:", tf.__version__)
 try:
     from tensorflow.keras.models import load_model
 except Exception:
