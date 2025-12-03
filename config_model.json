@@ -1,0 +1,21 @@
+{
+    "features": [
+        "Global_reactive_power",
+        "Voltage",
+        "Global_intensity",
+        "Sub_metering_1",
+        "Sub_metering_2",
+        "Sub_metering_3",
+        "sub_metering_4",
+        "day_of_week",
+        "is_weekend",
+        "day",
+        "month",
+        "year",
+        "quarter",
+        "lag1",
+        "lag7",
+        "lag30"
+    ],
+    "target": "Global_active_power"
+}
