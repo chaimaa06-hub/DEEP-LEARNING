@@ -10,7 +10,6 @@ import gzip
 
 st.set_page_config(page_title="Prédiction J+1 - ML & DL",
                    layout="wide")
-
 st.title("📊 Prédiction J+1 : ML & Deep Learning")
 
 # =============== SIDEBAR ===============
@@ -20,7 +19,7 @@ section = st.sidebar.radio(
     [
         "📁 Dataset",
         "🧹 Prétraitement",
-        "🤖 Modèles & Prédictions",
+        "🤖 Prédictions modèles",
         "📈 Comparaison modèles"
     ]
 )
@@ -28,50 +27,64 @@ section = st.sidebar.radio(
 # =============== CHARGER DATASET LOCAL ===============
 @st.cache_data
 def load_local_data():
-    # Fichier compressé présent dans ton repo
     with gzip.open("energy_daily_lags.csv.gz", "rt") as f:
         df = pd.read_csv(f, parse_dates=True, index_col=0)
     return df
 
-df = load_local_data()
+df_daily = load_local_data()
 
-if "Global_active_power" not in df.columns:
+if "Global_active_power" not in df_daily.columns:
     st.error("La colonne 'Global_active_power' n'existe pas dans energy_daily_lags.csv.gz.")
     st.stop()
 
-df_proc = df.copy()
+# Copie de travail
+df_proc = df_daily.copy()
 
 # =============== PREPROCESSING COMMUN ===============
-df_proc = df_proc.fillna(method="ffill")
+# lags + temps (comme pour ML classiques)
 df_proc["lag1"] = df_proc["Global_active_power"].shift(1)
 df_proc["lag7"] = df_proc["Global_active_power"].shift(7)
 df_proc["lag30"] = df_proc["Global_active_power"].shift(30)
 df_proc["day_of_week"] = df_proc.index.dayofweek
 df_proc["month"] = df_proc.index.month
 df_proc["is_weekend"] = df_proc["day_of_week"].isin([5, 6]).astype(int)
-df_proc.dropna(inplace=True)
+
+# colonnes pour LSTM (comme dans ton script)
+for col in [
+    "Global_reactive_power",
+    "Voltage",
+    "Global_intensity",
+    "Sub_metering_1",
+    "Sub_metering_2",
+    "Sub_metering_3",
+    "sub_metering_4",
+]:
+    if col not in df_proc.columns:
+        df_proc[col] = 0.0  # sécurité si certains colonnes manquent
+
+df_proc = df_proc.fillna(method="ffill")
+df_proc = df_proc.dropna()
 
 numeric_cols = ["Global_active_power", "lag1", "lag7", "lag30"]
 scaler = MinMaxScaler()
 df_scaled = df_proc.copy()
 df_scaled[numeric_cols] = scaler.fit_transform(df_proc[numeric_cols])
 
-# =============== SECTION : DATASET ===============
+# =============== SECTION DATASET ===============
 if section == "📁 Dataset":
     st.header("📁 Dataset (depuis GitHub)")
-    st.write("Fichier utilisé : **energy_daily_lags.csv.gz** (stocké dans le repo GitHub).")
+    st.write("Fichier utilisé : **energy_daily_lags.csv.gz**.")
     st.subheader("Aperçu")
-    st.dataframe(df.head())
+    st.dataframe(df_daily.head())
     st.subheader("Statistiques descriptives")
-    st.write(df.describe())
-    st.subheader("Série temporelle Global_active_power")
-    st.line_chart(df["Global_active_power"])
+    st.write(df_daily.describe())
+    st.subheader("Série Global_active_power")
+    st.line_chart(df_daily["Global_active_power"])
 
-# =============== SECTION : PRETRAITEMENT ===============
+# =============== SECTION PRETRAITEMENT ===============
 elif section == "🧹 Prétraitement":
     st.header("🧹 Prétraitement des données")
-    st.write("Valeurs manquantes comblées (forward fill) et création des lags / variables calendrier.")
-    st.subheader("Aperçu des données prétraitées")
+    st.subheader("Aperçu après création des lags / variables temporelles")
     st.dataframe(df_proc.head())
 
     st.subheader("Histogrammes des principales variables")
@@ -82,12 +95,12 @@ elif section == "🧹 Prétraitement":
     plt.tight_layout()
     st.pyplot(fig)
 
-# =============== CHARGEMENT MODELES (COMMUN AUX 2 DERNIERES SECTIONS) ===============
+# =============== CHARGEMENT MODELES (POUR LES 2 DERNIÈRES SECTIONS) ===============
 else:
     try:
         custom_objs = {"mse": MeanSquaredError()}
 
-        # Modèles ML
+        # ML classiques
         with open("linear_regression.pkl", "rb") as f:
             model_lr = pickle.load(f)
         with open("knn.pkl", "rb") as f:
@@ -95,9 +108,13 @@ else:
         with open("random_forest.pkl", "rb") as f:
             model_rf = pickle.load(f)
 
-        # Modèles DL (en passant custom_objects pour corriger keras.metrics.mse)
+        # MLP (multi-step, entraîné sur Global_active_power normalisé, fenêtre 30)
         model_mlp = load_model("mlp_best_j1.h5", custom_objects=custom_objs)
+
+        # LSTM (fenêtre 60, 9 features)
         model_lstm = load_model("lstm_j1.h5", custom_objects=custom_objs)
+
+        # CNN (fenêtre 90, 1 feature Global_active_power)
         model_cnn = load_model("cnn_j1_model_5 (2).h5", custom_objects=custom_objs)
 
         st.success("✅ Modèles ML & DL chargés.")
@@ -105,55 +122,76 @@ else:
         st.error(f"Erreur lors du chargement des modèles : {e}")
         st.stop()
 
-    # Préparation des fenêtres
+    # ---------- Préparation des entrées ----------
+    # 1) ML classiques
     features_ml = ["lag1", "lag7", "lag30", "day_of_week", "month"]
-    X_last_ml = df_proc[features_ml].values[-1:].reshape(1, -1)
-
-    series = df_proc["Global_active_power"].values.reshape(-1, 1)
-    series_scaled = scaler.fit_transform(series).flatten()
-
-    window_mlp = 30
-    window_lstm = 60
-    window_cnn = 90
-    if len(series_scaled) < max(window_mlp, window_lstm, window_cnn):
-        st.error("Pas assez de points pour construire les fenêtres des modèles DL.")
+    if len(df_proc) < 1:
+        st.error("Dataset trop court.")
         st.stop()
+    X_last_ml = df_proc[features_ml].iloc[-1:].values.reshape(1, -1)
 
-    X_last_mlp = series_scaled[-window_mlp:].reshape(1, window_mlp)
-    X_last_lstm = series_scaled[-window_lstm:].reshape(1, window_lstm, 1)
-    X_last_cnn = series_scaled[-window_cnn:].reshape(1, window_cnn, 1)
+    # 2) MLP : fenêtre 30 sur Global_active_power normalisé (comme ton script MLP)
+    series_mlp = df_scaled["Global_active_power"].values  # déjà normalisé
+    window_mlp = 30
+    if len(series_mlp) < window_mlp:
+        st.error("Pas assez de points pour MLP (30).")
+        st.stop()
+    X_last_mlp = series_mlp[-window_mlp:].reshape(1, window_mlp)
+    y_pred_seq = model_mlp.predict(X_last_mlp)  # shape (1, 7)
+    mlp_j1 = float(y_pred_seq[0, 0])  # J+1 en version normalisée
+    # remettre à l'échelle en utilisant min/max de la série
+    min_val = df_proc["Global_active_power"].min()
+    max_val = df_proc["Global_active_power"].max()
+    mlp_j1_denorm = mlp_j1 * (max_val - min_val) + min_val
 
-    y_last_real = float(series[-1][0])
+    # 3) LSTM : fenêtre 60 sur 9 features
+    feature_cols_lstm = [
+        "Global_reactive_power", "Voltage", "Global_intensity",
+        "Sub_metering_1", "Sub_metering_2", "Sub_metering_3",
+        "sub_metering_4", "day_of_week", "is_weekend"
+    ]
+    window_lstm = 60
+    if len(df_proc) < window_lstm:
+        st.error("Pas assez de points pour LSTM (60).")
+        st.stop()
+    X_last_lstm = (
+        df_proc[feature_cols_lstm]
+        .iloc[-window_lstm:]
+        .values
+        .reshape(1, window_lstm, len(feature_cols_lstm))
+    )
+    lstm_j1 = float(model_lstm.predict(X_last_lstm)[0, 0])
 
+    # 4) CNN : fenêtre 90 sur Global_active_power (non normalisé, comme ton script)
+    series_cnn = df_daily["Global_active_power"].values
+    window_cnn = 90
+    if len(series_cnn) < window_cnn:
+        st.error("Pas assez de points pour CNN (90).")
+        st.stop()
+    X_last_cnn = series_cnn[-window_cnn:].reshape(1, window_cnn, 1)
+    cnn_j1 = float(model_cnn.predict(X_last_cnn)[0, 0])
+
+    # Valeur réelle la plus récente (J actuel)
+    y_last_real = float(df_daily["Global_active_power"].values[-1])
+
+    # ---------- Prédictions dictionnaire ----------
     pred_dict = {
         "Linear Regression": float(model_lr.predict(X_last_ml)[0]),
         "KNN": float(model_knn.predict(X_last_ml)[0]),
         "Random Forest": float(model_rf.predict(X_last_ml)[0]),
-        "MLP": float(
-            scaler.inverse_transform(
-                model_mlp.predict(X_last_mlp).reshape(-1, 1)
-            )[0][0]
-        ),
-        "LSTM": float(
-            scaler.inverse_transform(
-                model_lstm.predict(X_last_lstm).reshape(-1, 1)
-            )[0][0]
-        ),
-        "CNN": float(
-            scaler.inverse_transform(
-                model_cnn.predict(X_last_cnn).reshape(-1, 1)
-            )[0][0]
-        )
+        "MLP": mlp_j1_denorm,
+        "LSTM": lstm_j1,
+        "CNN": cnn_j1
     }
 
-    # =============== SECTION : MODELES & PREDICTIONS ===============
-    if section == "🤖 Modèles & Prédictions":
+    # =============== SECTION PREDICTIONS ===============
+    if section == "🤖 Prédictions modèles":
         st.header("🤖 Prédictions J+1 par modèle")
         st.write(f"Dernière valeur réelle (J) : **{y_last_real:.4f}**")
         for name, val in pred_dict.items():
             st.write(f"**{name}** : {val:.4f}")
 
-    # =============== SECTION : COMPARAISON ===============
+    # =============== SECTION COMPARAISON ===============
     elif section == "📈 Comparaison modèles":
         st.header("📈 Comparaison des modèles")
 
