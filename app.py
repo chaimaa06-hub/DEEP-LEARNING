@@ -17,7 +17,7 @@ uploaded_file = st.file_uploader("📂 Charger le dataset CSV",
                                  type="csv")
 
 if uploaded_file:
-    # 1ère colonne = datetime, cible = Global_active_power
+    # On suppose : 1ère colonne = datetime, cible = Global_active_power
     df = pd.read_csv(uploaded_file, parse_dates=True, index_col=0)
 
     st.subheader("Aperçu du dataset")
@@ -63,18 +63,16 @@ if uploaded_file:
     st.header("Section 3 : Prédiction J+1 avec tous les modèles (sans ARIMA)")
 
     try:
-        # ML
+        # Modèles ML
         with open("linear_regression.pkl", "rb") as f:
             model_lr = pickle.load(f)
         with open("knn.pkl", "rb") as f:
             model_knn = pickle.load(f)
-        with open("decision_tree.pkl", "rb") as f:
-            model_dt = pickle.load(f)
         with open("random_forest.pkl", "rb") as f:
             model_rf = pickle.load(f)
 
-        # DL
-        model_mlp = load_model("mlp_j1.h5")
+        # Modèles DL
+        model_mlp = load_model("mlp_best_j1.h5")
         model_lstm = load_model("lstm_j1.h5")
         model_cnn = load_model("cnn_j1_model_5 (2).h5")
 
@@ -90,6 +88,7 @@ if uploaded_file:
     series = df["Global_active_power"].values.reshape(-1, 1)
     series_scaled = scaler.fit_transform(series).flatten()
 
+    # Tailles de fenêtre (adapter si besoin à ton entraînement)
     window_mlp = 30
     window_lstm = 60
     window_cnn = 90
@@ -108,7 +107,6 @@ if uploaded_file:
     pred_dict = {
         "Linear Regression": float(model_lr.predict(X_last_ml)[0]),
         "KNN": float(model_knn.predict(X_last_ml)[0]),
-        "Decision Tree": float(model_dt.predict(X_last_ml)[0]),
         "Random Forest": float(model_rf.predict(X_last_ml)[0]),
         "MLP": float(
             scaler.inverse_transform(
