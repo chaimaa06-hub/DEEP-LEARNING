@@ -126,19 +126,76 @@ if section == "📁 Dataset":
     st.subheader("Série temporelle – Global_active_power")
     st.line_chart(df_daily["Global_active_power"])
 
-# ----------------- SECTION : PRETRAITEMENT -----------------
 elif section == "🧹 Prétraitement":
     st.header("🧹 Prétraitement des données")
-    st.subheader("Aperçu après création des lags / variables temporelles")
-    st.dataframe(df_proc.head(), use_container_width=True)
 
-    st.subheader("Histogrammes des principales variables")
-    fig, axes = plt.subplots(len(numeric_cols), 1, figsize=(10, 8))
-    for i, col in enumerate(numeric_cols):
-        axes[i].hist(df_proc[col], bins=30, color="skyblue")
-        axes[i].set_title(f"Histogramme de {col}")
-    plt.tight_layout()
-    st.pyplot(fig)
+    tab1, tab2, tab3 = st.tabs(["📋 Aperçu", "📊 Histogrammes", "📈 Lags & corrélation"])
+
+    # ----- Onglet 1 : Aperçu -----
+    with tab1:
+        st.subheader("Aperçu après création des lags / variables temporelles")
+        st.dataframe(df_proc.head(), use_container_width=True)
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.write("Distribution Global_active_power")
+            fig0, ax0 = plt.subplots(figsize=(4,3))
+            ax0.hist(df_proc["Global_active_power"], bins=40, color="#60a5fa")
+            ax0.set_xlabel("Global_active_power")
+            ax0.set_ylabel("Fréquence")
+            st.pyplot(fig0)
+        with col_b:
+            st.write("Répartition jour de la semaine")
+            counts = df_proc["day_of_week"].value_counts().sort_index()
+            fig01, ax01 = plt.subplots(figsize=(4,3))
+            ax01.bar(counts.index, counts.values, color="#34d399")
+            ax01.set_xlabel("Jour de la semaine (0=lundi)")
+            ax01.set_ylabel("Nombre de points")
+            st.pyplot(fig01)
+
+    # ----- Onglet 2 : Histogrammes -----
+    with tab2:
+        st.subheader("Histogrammes des principales variables")
+        fig, axes = plt.subplots(len(numeric_cols), 1, figsize=(10, 8))
+        for i, col in enumerate(numeric_cols):
+            axes[i].hist(df_proc[col], bins=30, color="skyblue")
+            axes[i].set_title(f"Histogramme de {col}")
+        plt.tight_layout()
+        st.pyplot(fig)
+
+    # ----- Onglet 3 : Lags & corrélation -----
+    with tab3:
+        st.subheader("Évolution de la série et des lags")
+        cols = st.multiselect(
+            "Choisir les séries à afficher",
+            options=["Global_active_power", "lag1", "lag7", "lag30"],
+            default=["Global_active_power", "lag1", "lag7", "lag30"],
+        )
+
+        if cols:
+            fig2, ax2 = plt.subplots(figsize=(10,4))
+            for c in cols:
+                ax2.plot(df_proc.index, df_proc[c], label=c)
+            ax2.set_xlabel("Date")
+            ax2.set_ylabel("Valeur")
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+            plt.tight_layout()
+            st.pyplot(fig2)
+
+        st.subheader("Matrice de corrélation (lags et cible)")
+        corr_cols = ["Global_active_power", "lag1", "lag7", "lag30", "day_of_week", "month"]
+        corr = df_proc[corr_cols].corr()
+        fig3, ax3 = plt.subplots(figsize=(6,4))
+        im = ax3.imshow(corr, cmap="viridis")
+        ax3.set_xticks(range(len(corr_cols)))
+        ax3.set_yticks(range(len(corr_cols)))
+        ax3.set_xticklabels(corr_cols, rotation=45, ha="right")
+        ax3.set_yticklabels(corr_cols)
+        fig3.colorbar(im, ax=ax3, shrink=0.8)
+        plt.tight_layout()
+        st.pyplot(fig3)
+
 
 # ----------------- CHARGEMENT MODELES POUR LES 2 AUTRES SECTIONS -----------------
 else:
