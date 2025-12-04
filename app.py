@@ -361,14 +361,14 @@ else:
         "LSTM": lstm_j1,
         "CNN": cnn_j1,
     }
-  pred_dict = {k: v for k, v in pred_dict.items() if not np.isnan(v)}
+    pred_dict = {k: v for k, v in pred_dict.items() if not np.isnan(v)}
 
     # ----------------- PREDICTIONS -----------------
     if section == "Prédictions modèles":
         st.header("Prédictions J+1 par modèle")
         st.write(f"Dernière valeur réelle (J) : **{y_last_real:.4f}**")
 
-        # Scénario futur – LSTM multivarié (dépend des paramètres)
+        # Scénario futur – LSTM multivarié
         st.markdown("---")
         st.subheader("Simulation d'une journée future (scénario métier – LSTM)")
 
@@ -415,11 +415,9 @@ else:
         sim_is_weekend = 1 if sim_day_of_week in [5, 6] else 0
 
         if st.button("Lancer la simulation (LSTM)"):
-            # Fenêtre de base : 60 derniers jours
             X_sim_lstm_df = df_proc[feature_cols_lstm].iloc[-window_lstm:].copy()
             last_row_real = df_proc.iloc[-1]
 
-            # On remplace la dernière ligne de la fenêtre par les valeurs saisies
             X_sim_lstm_df.iloc[-1] = [
                 sim_gr,
                 sim_volt,
