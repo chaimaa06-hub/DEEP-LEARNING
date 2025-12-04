@@ -85,7 +85,7 @@ st.set_page_config(page_title="Prédiction J+1 - ML & DL",
                    page_icon="⚡")
 inject_futuristic_css()
 
-st.title("📊 Prédiction J+1 : ML & Deep Learning")
+st.title("Prédiction J+1 : ML & Deep Learning")
 st.caption("Projet DEEP LEARNING – Prévision de la consommation électrique J+1")
 st.divider()
 
@@ -107,7 +107,7 @@ with st.sidebar:
     st.title("⚡ Menu")
     section = st.radio(
         "Choisir une vue :",
-        ["🏠 Accueil", "📁 Dataset", "🧹 Prétraitement", "🤖 Prédictions modèles", "📈 Comparaison modèles"],
+        ["Accueil", "📁 Dataset", "Prétraitement", " Prédictions modèles", "📈 Comparaison modèles"],
     )
     level = st.selectbox("Niveau de détail", ["Basique", "Avancé"])
     st.markdown("---")
@@ -153,8 +153,8 @@ color_map = {
 }
 
 # ----------------- SECTION ACCUEIL -----------------
-if section == "🏠 Accueil":
-    st.header("🏠 Vue d’ensemble du projet")
+if section == "Accueil":
+    st.header(" Vue d’ensemble du projet")
     col1, col2 = st.columns([2, 1])
 
     with col1:
@@ -168,8 +168,8 @@ if section == "🏠 Accueil":
             </p>
             <ul>
               <li>📁 <b>Dataset</b> : examen des données journalières</li>
-              <li>🧹 <b>Prétraitement</b> : lags, variables calendaires et normalisation</li>
-              <li>🤖 <b>Prédictions modèles</b> : estimation J+1 par modèle</li>
+              <li> <b>Prétraitement</b> : lags, variables calendaires et normalisation</li>
+              <li> <b>Prédictions modèles</b> : estimation J+1 par modèle</li>
               <li>📈 <b>Comparaison modèles</b> : meilleur modèle et erreurs</li>
             </ul>
             </div>
@@ -216,8 +216,8 @@ elif section == "📁 Dataset":
     st.line_chart(df_daily["Global_active_power"].iloc[-n_days_ds:])
 
 # ----------------- SECTION PRETRAITEMENT -----------------
-elif section == "🧹 Prétraitement":
-    st.header("🧹 Prétraitement des données")
+elif section == " Prétraitement":
+    st.header(" Prétraitement des données")
 
     tab1, tab2, tab3 = st.tabs(["📋 Aperçu", "📊 Histogrammes", "📈 Lags & corrélation"])
 
@@ -289,7 +289,7 @@ else:
         model_lstm = load_model("lstm_j1.h5", custom_objects=custom_objs)
         model_cnn = load_model("cnn_j1_model_5 (2).h5", custom_objects=custom_objs)
 
-        st.success("✅ Modèles ML & DL chargés.")
+        st.success("Modèles ML & DL chargés.")
     except Exception as e:
         st.error(f"Erreur lors du chargement des modèles : {e}")
         st.stop()
@@ -338,8 +338,8 @@ else:
     }
 
     # ----------------- SECTION PREDICTIONS -----------------
-    if section == "🤖 Prédictions modèles":
-        st.header("🤖 Prédictions J+1 par modèle")
+    if section == " Prédictions modèles":
+        st.header(" Prédictions J+1 par modèle")
         st.write(f"Dernière valeur réelle (J) : **{y_last_real:.4f}**")
 
         mse_mae = {}
