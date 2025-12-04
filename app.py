@@ -1,108 +1,166 @@
 import streamlit as st
+import pandas as pd
 import numpy as np
-import json
-import os
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.models import load_model
+import pickle
 
-# ============================================================
-# 🧩 Import sécurisé de TensorFlow (sinon stop)
-# ============================================================
-try:
-    from tensorflow.keras.models import load_model
-except Exception:
-    st.error("⚠ TensorFlow n'est pas installé. Ajoutez 'tensorflow-cpu==2.12.0' dans requirements.txt")
-    st.stop()
+st.set_page_config(page_title="Prédiction J+1 - ML & DL",
+                   layout="wide")
+st.title("📊 Prédiction J+1 : ML & Deep Learning")
 
-# ============================================================
-# 🔥 Charger config_model.json
-# ============================================================
-if not os.path.exists("config_model.json"):
-    st.error("❌ Fichier config_model.json introuvable dans le repo GitHub !")
-    st.stop()
+# ----------------- SECTION 1 : DATA -----------------
+st.header("Section 1 : Overview du dataset")
 
-with open("config_model.json", "r") as f:
-    config = json.load(f)
+uploaded_file = st.file_uploader("📂 Charger le dataset CSV",
+                                 type="csv")
 
-FEATURES = config["features"]
-TARGET = config["target"]
+if uploaded_file:
+    # 1ère colonne = datetime, cible = Global_active_power
+    df = pd.read_csv(uploaded_file, parse_dates=True, index_col=0)
 
-# ============================================================
-# 🔥 Définition des modèles Deep Learning
-# ============================================================
-MODELS = {
-    "LSTM J1": {
-        "path": "lstm_j1.h5",
-        "seq_len": 30
-    },
-    "MLP J1": {
-        "path": "mlp_best_j1.h5",
-        "seq_len": 1
-    },
-    "CNN J1": {
-        "path": "cnn_j1_model_5_2.h5",   # ⚠ Renommé dans ton repo GitHub
-        "seq_len": 30
-    }
-}
+    st.subheader("Aperçu du dataset")
+    st.dataframe(df.head())
+    st.write("Statistiques descriptives :")
+    st.write(df.describe())
 
-st.title("🔮 Interface de Prévision — Deep Learning (LSTM / CNN / MLP)")
-st.write("Modifiez les valeurs des features pour tester la prédiction.")
+    if "Global_active_power" not in df.columns:
+        st.error("La colonne 'Global_active_power' n'existe pas dans le CSV.")
+        st.stop()
 
-# ============================================================
-# 🧠 Choix du modèle
-# ============================================================
-available_models = [name for name, info in MODELS.items() if os.path.exists(info["path"])]
+    st.line_chart(df["Global_active_power"])
 
-if not available_models:
-    st.error("❌ Aucun fichier .h5 trouvé dans ton dépôt !")
-    st.stop()
+    # ----------------- SECTION 2 : PREPROCESSING -----------------
+    st.header("Section 2 : Preprocessing")
 
-model_name = st.selectbox("Sélectionnez un modèle :", available_models)
-seq_len = MODELS[model_name]["seq_len"]
-model_path = MODELS[model_name]["path"]
+    df = df.fillna(method="ffill")
+    st.write("✅ Valeurs manquantes comblées (forward fill)")
 
-st.info(f"📌 Modèle sélectionné : *{model_name}*")
-st.write(f"🔢 Sequence length : *{seq_len}*")
-st.write(f"📊 Nombre de features : *{len(FEATURES)}*")
+    df["lag1"] = df["Global_active_power"].shift(1)
+    df["lag7"] = df["Global_active_power"].shift(7)
+    df["lag30"] = df["Global_active_power"].shift(30)
+    df["day_of_week"] = df.index.dayofweek
+    df["month"] = df.index.month
+    df["is_weekend"] = df["day_of_week"].isin([5, 6]).astype(int)
+    df.dropna(inplace=True)
 
-# ============================================================
-# 🏗 Charger le modèle uniquement après sélection
-# ============================================================
-@st.cache_resource
-def load_selected_model(path):
-    return load_model(path)
+    st.subheader("Histogrammes des principales variables")
+    numeric_cols = ["Global_active_power", "lag1", "lag7", "lag30"]
+    fig, axes = plt.subplots(len(numeric_cols), 1, figsize=(10, 8))
+    for i, col in enumerate(numeric_cols):
+        axes[i].hist(df[col], bins=30, color="skyblue")
+        axes[i].set_title(f"Histogramme de {col}")
+    plt.tight_layout()
+    st.pyplot(fig)
 
-model = load_selected_model(model_path)
+    scaler = MinMaxScaler()
+    df_scaled = df.copy()
+    df_scaled[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+    st.write("✅ Features normalisées (MinMaxScaler)")
 
-# ============================================================
-# ✏ Saisie interactive des features
-# ============================================================
-st.subheader("📝 Entrez les valeurs des features")
+    # ----------------- SECTION 3 : CHARGEMENT DES MODELES -----------------
+    st.header("Section 3 : Prédiction J+1 avec tous les modèles (sans ARIMA)")
 
-input_values = {}
-
-for feature in FEATURES:
-    input_values[feature] = st.number_input(
-        feature,
-        value=0.0,
-        format="%.4f"
-    )
-
-single_step = np.array([input_values[f] for f in FEATURES], dtype=float)
-
-# ============================================================
-# 🚀 Prédiction
-# ============================================================
-if st.button("🔮 Lancer la prédiction"):
     try:
-        if seq_len == 1:
-            # MLP
-            X = single_step.reshape(1, -1)
-        else:
-            # LSTM / CNN
-            X = np.tile(single_step, (seq_len, 1)).reshape(1, seq_len, len(FEATURES))
+        # ML
+        with open("linear_regression.pkl", "rb") as f:
+            model_lr = pickle.load(f)
+        with open("knn.pkl", "rb") as f:
+            model_knn = pickle.load(f)
+        with open("decision_tree.pkl", "rb") as f:
+            model_dt = pickle.load(f)
+        with open("random_forest.pkl", "rb") as f:
+            model_rf = pickle.load(f)
 
-        prediction = model.predict(X, verbose=0)
+        # DL
+        model_mlp = load_model("mlp_j1.h5")
+        model_lstm = load_model("lstm_j1.h5")
+        model_cnn = load_model("cnn_j1_model_5 (2).h5")
 
-        st.success(f"🎯 Prédiction ({TARGET}) : *{prediction[0][0]:.4f}*")
-
+        st.success("✅ Modèles ML & DL chargés.")
     except Exception as e:
-        st.error(f"⚠ Erreur lors de la prédiction : {e}")
+        st.error(f"Erreur lors du chargement des modèles : {e}")
+        st.stop()
+
+    # ----------------- PRÉPARATION FENÊTRES -----------------
+    features_ml = ["lag1", "lag7", "lag30", "day_of_week", "month"]
+    X_last_ml = df[features_ml].values[-1:].reshape(1, -1)
+
+    series = df["Global_active_power"].values.reshape(-1, 1)
+    series_scaled = scaler.fit_transform(series).flatten()
+
+    window_mlp = 30
+    window_lstm = 60
+    window_cnn = 90
+
+    if len(series_scaled) < max(window_mlp, window_lstm, window_cnn):
+        st.error("Pas assez de points pour construire les fenêtres des modèles DL.")
+        st.stop()
+
+    X_last_mlp = series_scaled[-window_mlp:].reshape(1, window_mlp)
+    X_last_lstm = series_scaled[-window_lstm:].reshape(1, window_lstm, 1)
+    X_last_cnn = series_scaled[-window_cnn:].reshape(1, window_cnn, 1)
+
+    y_last_real = float(series[-1][0])
+
+    # ----------------- PRÉDICTIONS -----------------
+    pred_dict = {
+        "Linear Regression": float(model_lr.predict(X_last_ml)[0]),
+        "KNN": float(model_knn.predict(X_last_ml)[0]),
+        "Decision Tree": float(model_dt.predict(X_last_ml)[0]),
+        "Random Forest": float(model_rf.predict(X_last_ml)[0]),
+        "MLP": float(
+            scaler.inverse_transform(
+                model_mlp.predict(X_last_mlp).reshape(-1, 1)
+            )[0][0]
+        ),
+        "LSTM": float(
+            scaler.inverse_transform(
+                model_lstm.predict(X_last_lstm).reshape(-1, 1)
+            )[0][0]
+        ),
+        "CNN": float(
+            scaler.inverse_transform(
+                model_cnn.predict(X_last_cnn).reshape(-1, 1)
+            )[0][0]
+        )
+    }
+
+    st.subheader("Prédictions J+1 pour chaque modèle")
+    for name, val in pred_dict.items():
+        st.write(f"**{name}** : {val:.4f}")
+
+    # ----------------- COMPARAISON -----------------
+    st.header("Section 4 : Comparaison des modèles")
+
+    df_compare = pd.DataFrame({
+        "Model": list(pred_dict.keys()),
+        "Prediction J+1": list(pred_dict.values()),
+        "Real J+1": [y_last_real] * len(pred_dict)
+    })
+    df_compare["Error_abs"] = np.abs(df_compare["Prediction J+1"] -
+                                     df_compare["Real J+1"])
+    df_compare["MSE"] = (df_compare["Prediction J+1"] -
+                         df_compare["Real J+1"]) ** 2
+
+    st.dataframe(df_compare)
+
+    fig_bar, ax_bar = plt.subplots(figsize=(8, 4))
+    ax_bar.bar(df_compare["Model"], df_compare["Prediction J+1"],
+               alpha=0.7, label="Prédiction J+1")
+    ax_bar.axhline(y=y_last_real, color="red",
+                   linestyle="--", label="Valeur réelle")
+    ax_bar.set_ylabel("Global_active_power")
+    ax_bar.set_xticklabels(df_compare["Model"], rotation=45, ha="right")
+    ax_bar.legend()
+    plt.tight_layout()
+    st.pyplot(fig_bar)
+
+    best_model_name = df_compare.loc[df_compare["Error_abs"].idxmin(),
+                                     "Model"]
+    best_pred = pred_dict[best_model_name]
+
+    st.markdown(f"🏆 **Meilleur modèle pour J+1 : {best_model_name}**")
+    st.write(f"Prédiction = {best_pred:.4f}")
+    st.write(f"Valeur réelle (J) = {y_last_real:.4f}")
