@@ -27,6 +27,39 @@ def inject_futuristic_css() -> None:
             background: linear-gradient(180deg, #020617, #020617 40%, #0f172a 100%);
             border-right: 1px solid rgba(148, 163, 184, 0.35);
         }
+        .glass-card {
+            background: linear-gradient(135deg, rgba(15,23,42,0.92), rgba(17,24,39,0.96));
+            border-radius: 18px;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            box-shadow:
+                0 20px 40px rgba(15, 23, 42, 0.85),
+                0 0 0 1px rgba(148, 163, 184, 0.15);
+            padding: 1.2rem 1.4rem;
+            margin-bottom: 1.0rem;
+            backdrop-filter: blur(22px);
+        }
+        .metric-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.25rem 0.7rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            background: radial-gradient(circle at top left, #22c55e33, #22c55e08);
+            color: #bbf7d0;
+            border: 1px solid rgba(34, 197, 94, 0.4);
+        }
+        .metric-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #e5e7eb;
+        }
+        .metric-label {
+            font-size: 0.8rem;
+            color: #9ca3af;
+        }
         .stButton>button {
             border-radius: 999px;
             background: linear-gradient(135deg, #0ea5e9, #6366f1);
@@ -56,7 +89,7 @@ st.title("📊 Prédiction J+1 : ML & Deep Learning")
 st.caption("Projet DEEP LEARNING – Prévision de la consommation électrique J+1")
 st.divider()
 
-# ----------------- SIDEBAR -----------------
+# ----------------- DATASET -----------------
 @st.cache_data
 def load_local_data():
     with gzip.open("energy_daily_lags.csv.gz", "rt") as f:
@@ -65,23 +98,24 @@ def load_local_data():
 
 df_daily = load_local_data()
 
-with st.sidebar:
-    st.title("⚡ Menu")
-    section = st.radio(
-        "Choisir une vue :",
-        ["📁 Dataset", "🧹 Prétraitement", "🤖 Prédictions modèles", "📈 Comparaison modèles"],
-    )
-    st.markdown("---")
-    st.write(f"Nombre de jours : **{len(df_daily)}**")
-
 if "Global_active_power" not in df_daily.columns:
     st.error("La colonne 'Global_active_power' n'existe pas dans energy_daily_lags.csv.gz.")
     st.stop()
 
+# ----------------- SIDEBAR -----------------
+with st.sidebar:
+    st.title("⚡ Menu")
+    section = st.radio(
+        "Choisir une vue :",
+        ["🏠 Accueil", "📁 Dataset", "🧹 Prétraitement", "🤖 Prédictions modèles", "📈 Comparaison modèles"],
+    )
+    level = st.selectbox("Niveau de détail", ["Basique", "Avancé"])
+    st.markdown("---")
+    st.write(f"Nombre de jours : **{len(df_daily)}**")
+
 # ----------------- PREPA COMMUNE -----------------
 df_proc = df_daily.copy()
 
-# lags + temps
 df_proc["lag1"] = df_proc["Global_active_power"].shift(1)
 df_proc["lag7"] = df_proc["Global_active_power"].shift(7)
 df_proc["lag30"] = df_proc["Global_active_power"].shift(30)
@@ -89,7 +123,6 @@ df_proc["day_of_week"] = df_proc.index.dayofweek
 df_proc["month"] = df_proc.index.month
 df_proc["is_weekend"] = df_proc["day_of_week"].isin([5, 6]).astype(int)
 
-# colonnes LSTM (si manquent, on met 0)
 for col in [
     "Global_reactive_power",
     "Voltage",
@@ -109,8 +142,55 @@ scaler = MinMaxScaler()
 df_scaled = df_proc.copy()
 df_scaled[numeric_cols] = scaler.fit_transform(df_proc[numeric_cols])
 
-# ----------------- SECTION : DATASET -----------------
-if section == "📁 Dataset":
+# palette par modèle
+color_map = {
+    "Linear Regression": "#3b82f6",
+    "KNN": "#22c55e",
+    "Random Forest": "#16a34a",
+    "MLP": "#f97316",
+    "LSTM": "#a855f7",
+    "CNN": "#ec4899",
+}
+
+# ----------------- SECTION ACCUEIL -----------------
+if section == "🏠 Accueil":
+    st.header("🏠 Vue d’ensemble du projet")
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        st.markdown(
+            f"""
+            <div class="glass-card">
+            <h3>Objectif de l'application</h3>
+            <p>
+            Cette interface compare plusieurs modèles (Machine Learning & Deep Learning)
+            pour prédire la consommation électrique quotidienne (<b>Global_active_power</b>) à J+1.
+            </p>
+            <ul>
+              <li>📁 <b>Dataset</b> : examen des données journalières</li>
+              <li>🧹 <b>Prétraitement</b> : lags, variables calendaires et normalisation</li>
+              <li>🤖 <b>Prédictions modèles</b> : estimation J+1 par modèle</li>
+              <li>📈 <b>Comparaison modèles</b> : meilleur modèle et erreurs</li>
+            </ul>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with col2:
+        st.markdown(
+            f"""
+            <div class="glass-card">
+            <h3>Infos rapides</h3>
+            <p>Nombre de jours : <b>{len(df_daily)}</b></p>
+            <p>Nombre de variables : <b>{len(df_daily.columns)}</b></p>
+            <p>Modèles comparés : LR, KNN, RF, MLP, LSTM, CNN</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+# ----------------- SECTION DATASET -----------------
+elif section == "📁 Dataset":
     st.header("📁 Dataset (depuis GitHub)")
     col1, col2 = st.columns([2, 1])
 
@@ -126,9 +206,16 @@ if section == "📁 Dataset":
         st.write(", ".join(list(df_daily.columns[:5])) + " ...")
 
     st.subheader("Série temporelle – Global_active_power")
-    st.line_chart(df_daily["Global_active_power"])
+    n_days_ds = st.slider(
+        "Nombre de derniers jours à afficher",
+        min_value=30,
+        max_value=min(365, len(df_daily)),
+        value=180,
+        step=30,
+    )
+    st.line_chart(df_daily["Global_active_power"].iloc[-n_days_ds:])
 
-# ----------------- SECTION : PRETRAITEMENT -----------------
+# ----------------- SECTION PRETRAITEMENT -----------------
 elif section == "🧹 Prétraitement":
     st.header("🧹 Prétraitement des données")
 
@@ -138,34 +225,25 @@ elif section == "🧹 Prétraitement":
         st.subheader("Aperçu après création des lags / variables temporelles")
         st.dataframe(df_proc.head(), use_container_width=True)
 
-        col_a, col_b = st.columns(2)
-        with col_a:
-            st.write("Distribution Global_active_power")
-            fig0, ax0 = plt.subplots(figsize=(4, 3))
-            ax0.hist(df_proc["Global_active_power"], bins=40, color="#60a5fa")
-            ax0.set_xlabel("Global_active_power")
-            ax0.set_ylabel("Fréquence")
-            st.pyplot(fig0)
-        with col_b:
-            st.write("Répartition jour de la semaine")
-            counts = df_proc["day_of_week"].value_counts().sort_index()
-            fig01, ax01 = plt.subplots(figsize=(4, 3))
-            ax01.bar(counts.index, counts.values, color="#34d399")
-            ax01.set_xlabel("Jour de la semaine (0=lundi)")
-            ax01.set_ylabel("Nombre de points")
-            st.pyplot(fig01)
-
     with tab2:
         st.subheader("Histogrammes des principales variables")
         fig, axes = plt.subplots(len(numeric_cols), 1, figsize=(10, 8))
         for i, col in enumerate(numeric_cols):
-            axes[i].hist(df_proc[col], bins=30, color="skyblue")
+            axes[i].hist(df_proc[col], bins=30, color="#60a5fa")
             axes[i].set_title(f"Histogramme de {col}")
         plt.tight_layout()
         st.pyplot(fig)
 
     with tab3:
         st.subheader("Évolution de la série et des lags")
+        n_days = st.slider(
+            "Nombre de derniers jours à afficher",
+            min_value=30,
+            max_value=min(365, len(df_proc)),
+            value=180,
+            step=30,
+        )
+        df_view = df_proc.iloc[-n_days:]
         cols = st.multiselect(
             "Choisir les séries à afficher",
             options=["Global_active_power", "lag1", "lag7", "lag30"],
@@ -174,7 +252,7 @@ elif section == "🧹 Prétraitement":
         if cols:
             fig2, ax2 = plt.subplots(figsize=(10, 4))
             for c in cols:
-                ax2.plot(df_proc.index, df_proc[c], label=c)
+                ax2.plot(df_view.index, df_view[c], label=c)
             ax2.set_xlabel("Date")
             ax2.set_ylabel("Valeur")
             ax2.legend()
@@ -195,7 +273,7 @@ elif section == "🧹 Prétraitement":
         plt.tight_layout()
         st.pyplot(fig3)
 
-# ----------------- CHARGEMENT MODELES POUR LES 2 AUTRES SECTIONS -----------------
+# ----------------- MODELES (pour les 2 dernières sections) -----------------
 else:
     try:
         custom_objs = {"mse": MeanSquaredError()}
@@ -216,11 +294,10 @@ else:
         st.error(f"Erreur lors du chargement des modèles : {e}")
         st.stop()
 
-    # --------- Entrées modèles ---------
+    # Entrées modèles
     features_ml = ["lag1", "lag7", "lag30", "day_of_week", "month"]
     X_last_ml = df_proc[features_ml].iloc[-1:].values.reshape(1, -1)
 
-    # MLP : fenêtre 30 sur Global_active_power normalisé
     series_mlp = df_scaled["Global_active_power"].values
     window_mlp = 30
     X_last_mlp = series_mlp[-window_mlp:].reshape(1, window_mlp)
@@ -230,7 +307,6 @@ else:
     max_val = df_proc["Global_active_power"].max()
     mlp_j1 = mlp_j1_norm * (max_val - min_val) + min_val
 
-    # LSTM : fenêtre 60, 9 features
     feature_cols_lstm = [
         "Global_reactive_power", "Voltage", "Global_intensity",
         "Sub_metering_1", "Sub_metering_2", "Sub_metering_3",
@@ -245,7 +321,6 @@ else:
     )
     lstm_j1 = float(model_lstm.predict(X_last_lstm)[0, 0])
 
-    # CNN : fenêtre 90 sur Global_active_power brut
     series_cnn = df_daily["Global_active_power"].values
     window_cnn = 90
     X_last_cnn = series_cnn[-window_cnn:].reshape(1, window_cnn, 1)
@@ -262,7 +337,7 @@ else:
         "CNN": cnn_j1,
     }
 
-    # ----------------- SECTION : PREDICTIONS -----------------
+    # ----------------- SECTION PREDICTIONS -----------------
     if section == "🤖 Prédictions modèles":
         st.header("🤖 Prédictions J+1 par modèle")
         st.write(f"Dernière valeur réelle (J) : **{y_last_real:.4f}**")
@@ -283,39 +358,45 @@ else:
             }
         )
 
-        tab1, tab2, tab3 = st.tabs(["📋 Tableau", "📊 Erreurs", "🔎 Détail"])
+        if level == "Basique":
+            st.subheader("Meilleur modèle (MAE minimal)")
+            best_row = df_metrics.sort_values("MAE").iloc[0]
+            st.write(best_row.to_frame().T)
+        else:
+            tab1, tab2, tab3 = st.tabs(["📋 Tableau", "📊 Erreurs", "🔎 Détail"])
 
-        with tab1:
-            st.subheader("Tableau des prédictions et erreurs")
-            st.dataframe(df_metrics, use_container_width=True)
+            with tab1:
+                st.subheader("Tableau des prédictions et erreurs")
+                st.dataframe(df_metrics, use_container_width=True)
 
-        with tab2:
-            st.subheader("Visualisation MSE / MAE")
-            models_list = list(pred_dict.keys())
-            mse_vals = [mse_mae[m]["MSE"] for m in models_list]
-            mae_vals = [mse_mae[m]["MAE"] for m in models_list]
-            fig_err, ax_err = plt.subplots(figsize=(8, 4))
-            x = np.arange(len(models_list))
-            ax_err.bar(x - 0.15, mse_vals, width=0.3, label="MSE")
-            ax_err.bar(x + 0.15, mae_vals, width=0.3, label="MAE")
-            ax_err.set_xticks(x)
-            ax_err.set_xticklabels(models_list, rotation=45, ha="right")
-            ax_err.set_ylabel("Erreur")
-            ax_err.legend()
-            ax_err.grid(True, alpha=0.3)
-            plt.tight_layout()
-            st.pyplot(fig_err)
+            with tab2:
+                st.subheader("Visualisation MSE / MAE")
+                models_list = list(pred_dict.keys())
+                mse_vals = [mse_mae[m]["MSE"] for m in models_list]
+                mae_vals = [mse_mae[m]["MAE"] for m in models_list]
+                fig_err, ax_err = plt.subplots(figsize=(8, 4))
+                x = np.arange(len(models_list))
+                colors = [color_map[m] for m in models_list]
+                ax_err.bar(x - 0.15, mse_vals, width=0.3, label="MSE", color=colors)
+                ax_err.bar(x + 0.15, mae_vals, width=0.3, label="MAE", color=colors)
+                ax_err.set_xticks(x)
+                ax_err.set_xticklabels(models_list, rotation=45, ha="right")
+                ax_err.set_ylabel("Erreur")
+                ax_err.legend()
+                ax_err.grid(True, alpha=0.3)
+                plt.tight_layout()
+                st.pyplot(fig_err)
 
-        with tab3:
-            st.subheader("Erreur par modèle")
-            for name in df_metrics["Model"]:
-                st.metric(
-                    label=name,
-                    value=f"{pred_dict[name]:.4f}",
-                    delta=f"MAE {mse_mae[name]['MAE']:.4f}",
-                )
+            with tab3:
+                st.subheader("Erreur par modèle")
+                for name in df_metrics["Model"]:
+                    st.metric(
+                        label=name,
+                        value=f"{pred_dict[name]:.4f}",
+                        delta=f"MAE {mse_mae[name]['MAE']:.4f}",
+                    )
 
-    # ----------------- SECTION : COMPARAISON -----------------
+    # ----------------- SECTION COMPARAISON -----------------
     elif section == "📈 Comparaison modèles":
         st.header("📈 Comparaison globale des modèles")
 
@@ -329,12 +410,34 @@ else:
         df_compare["MSE"] = (df_compare["Prediction J+1"] -
                              df_compare["Real J+1"]) ** 2
 
+        best_model_name = df_compare.loc[df_compare["Error_abs"].idxmin(),
+                                         "Model"]
+        best_pred = pred_dict[best_model_name]
+
+        st.markdown(
+            f"""
+            <div class="glass-card" style="display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <span class="metric-badge">Meilleur modèle</span>
+                <div class="metric-value">{best_model_name}</div>
+                <div class="metric-label">Prédiction J+1 : {best_pred:.4f}</div>
+              </div>
+              <div>
+                <span class="metric-badge">Valeur réelle J</span>
+                <div class="metric-value">{y_last_real:.4f}</div>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
         st.subheader("Tableau de comparaison")
         st.dataframe(df_compare, use_container_width=True)
 
         fig_bar, ax_bar = plt.subplots(figsize=(8, 4))
+        colors = [color_map[m] for m in df_compare["Model"]]
         ax_bar.bar(df_compare["Model"], df_compare["Prediction J+1"],
-                   alpha=0.7, label="Prédiction J+1")
+                   alpha=0.8, label="Prédiction J+1", color=colors)
         ax_bar.axhline(y=y_last_real, color="red",
                        linestyle="--", label="Valeur réelle")
         ax_bar.set_ylabel("Global_active_power")
@@ -343,11 +446,3 @@ else:
         ax_bar.grid(True, alpha=0.3)
         plt.tight_layout()
         st.pyplot(fig_bar)
-
-        best_model_name = df_compare.loc[df_compare["Error_abs"].idxmin(),
-                                         "Model"]
-        best_pred = pred_dict[best_model_name]
-
-        st.markdown(f"🏆 **Meilleur modèle pour J+1 : {best_model_name}**")
-        st.write(f"Prédiction = {best_pred:.4f}")
-        st.write(f"Valeur réelle (J) = {y_last_real:.4f}")
