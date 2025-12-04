@@ -361,7 +361,7 @@ else:
         "LSTM": lstm_j1,
         "CNN": cnn_j1,
     }
-    pred_dict = {k: v for k, v in pred_dict.items() if not np.isnan(v)]
+  pred_dict = {k: v for k, v in pred_dict.items() if not np.isnan(v)}
 
     # ----------------- PREDICTIONS -----------------
     if section == "Prédictions modèles":
