@@ -9,48 +9,50 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 import pickle
 import gzip
 
+# ----------------- THEME FUTURISTE -----------------
+def inject_futuristic_css() -> None:
+    st.markdown(
+        """
+        <style>
+        .stApp {
+            background: radial-gradient(circle at top left, #1f2933 0, #020617 45%, #000000 100%);
+            color: #e5e7eb;
+            font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        h1, h2, h3, h4 {
+            font-weight: 700 !important;
+            letter-spacing: 0.03em !important;
+        }
+        section[data-testid="stSidebar"] {
+            background: linear-gradient(180deg, #020617, #020617 40%, #0f172a 100%);
+            border-right: 1px solid rgba(148, 163, 184, 0.35);
+        }
+        .stButton>button {
+            border-radius: 999px;
+            background: linear-gradient(135deg, #0ea5e9, #6366f1);
+            color: white;
+            border: 0;
+            padding: 0.5rem 1.4rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            box-shadow: 0 8px 24px rgba(56, 189, 248, 0.4);
+        }
+        .stButton>button:hover {
+            background: linear-gradient(135deg, #22c55e, #a855f7);
+            box-shadow: 0 10px 32px rgba(16, 185, 129, 0.5);
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
 # ----------------- CONFIG GLOBALE -----------------
 st.set_page_config(page_title="Prédiction J+1 - ML & DL",
-                   layout="wide")
+                   layout="wide",
+                   page_icon="⚡")
+inject_futuristic_css()
+
 st.title("📊 Prédiction J+1 : ML & Deep Learning")
-
-# --------- THEME & STYLE GLOBAL ---------
-st.markdown(
-    """
-    <style>
-    .main {
-        background-color: #0e1117;
-        color: #e0e0e0;
-    }
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-    }
-    h1, h2, h3 {
-        color: #4fc3f7;
-    }
-    .stButton>button {
-        background-color: #10b981;
-        color: white;
-        border-radius: 8px;
-        border: none;
-        padding: 0.5rem 1rem;
-    }
-    .stButton>button:hover {
-        background-color: #059669;
-        color: white;
-    }
-    section[data-testid="stSidebar"] {
-        background-color: #020617;
-    }
-    .stRadio label {
-        color: #e5e7eb;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
 st.caption("Projet DEEP LEARNING – Prévision de la consommation électrique J+1")
 st.divider()
 
@@ -126,12 +128,12 @@ if section == "📁 Dataset":
     st.subheader("Série temporelle – Global_active_power")
     st.line_chart(df_daily["Global_active_power"])
 
+# ----------------- SECTION : PRETRAITEMENT -----------------
 elif section == "🧹 Prétraitement":
     st.header("🧹 Prétraitement des données")
 
     tab1, tab2, tab3 = st.tabs(["📋 Aperçu", "📊 Histogrammes", "📈 Lags & corrélation"])
 
-    # ----- Onglet 1 : Aperçu -----
     with tab1:
         st.subheader("Aperçu après création des lags / variables temporelles")
         st.dataframe(df_proc.head(), use_container_width=True)
@@ -139,7 +141,7 @@ elif section == "🧹 Prétraitement":
         col_a, col_b = st.columns(2)
         with col_a:
             st.write("Distribution Global_active_power")
-            fig0, ax0 = plt.subplots(figsize=(4,3))
+            fig0, ax0 = plt.subplots(figsize=(4, 3))
             ax0.hist(df_proc["Global_active_power"], bins=40, color="#60a5fa")
             ax0.set_xlabel("Global_active_power")
             ax0.set_ylabel("Fréquence")
@@ -147,13 +149,12 @@ elif section == "🧹 Prétraitement":
         with col_b:
             st.write("Répartition jour de la semaine")
             counts = df_proc["day_of_week"].value_counts().sort_index()
-            fig01, ax01 = plt.subplots(figsize=(4,3))
+            fig01, ax01 = plt.subplots(figsize=(4, 3))
             ax01.bar(counts.index, counts.values, color="#34d399")
             ax01.set_xlabel("Jour de la semaine (0=lundi)")
             ax01.set_ylabel("Nombre de points")
             st.pyplot(fig01)
 
-    # ----- Onglet 2 : Histogrammes -----
     with tab2:
         st.subheader("Histogrammes des principales variables")
         fig, axes = plt.subplots(len(numeric_cols), 1, figsize=(10, 8))
@@ -163,7 +164,6 @@ elif section == "🧹 Prétraitement":
         plt.tight_layout()
         st.pyplot(fig)
 
-    # ----- Onglet 3 : Lags & corrélation -----
     with tab3:
         st.subheader("Évolution de la série et des lags")
         cols = st.multiselect(
@@ -171,9 +171,8 @@ elif section == "🧹 Prétraitement":
             options=["Global_active_power", "lag1", "lag7", "lag30"],
             default=["Global_active_power", "lag1", "lag7", "lag30"],
         )
-
         if cols:
-            fig2, ax2 = plt.subplots(figsize=(10,4))
+            fig2, ax2 = plt.subplots(figsize=(10, 4))
             for c in cols:
                 ax2.plot(df_proc.index, df_proc[c], label=c)
             ax2.set_xlabel("Date")
@@ -186,7 +185,7 @@ elif section == "🧹 Prétraitement":
         st.subheader("Matrice de corrélation (lags et cible)")
         corr_cols = ["Global_active_power", "lag1", "lag7", "lag30", "day_of_week", "month"]
         corr = df_proc[corr_cols].corr()
-        fig3, ax3 = plt.subplots(figsize=(6,4))
+        fig3, ax3 = plt.subplots(figsize=(6, 4))
         im = ax3.imshow(corr, cmap="viridis")
         ax3.set_xticks(range(len(corr_cols)))
         ax3.set_yticks(range(len(corr_cols)))
@@ -196,13 +195,11 @@ elif section == "🧹 Prétraitement":
         plt.tight_layout()
         st.pyplot(fig3)
 
-
 # ----------------- CHARGEMENT MODELES POUR LES 2 AUTRES SECTIONS -----------------
 else:
     try:
         custom_objs = {"mse": MeanSquaredError()}
 
-        # ML classiques
         with open("linear_regression.pkl", "rb") as f:
             model_lr = pickle.load(f)
         with open("knn.pkl", "rb") as f:
@@ -210,7 +207,6 @@ else:
         with open("random_forest.pkl", "rb") as f:
             model_rf = pickle.load(f)
 
-        # DL
         model_mlp = load_model("mlp_best_j1.h5", custom_objects=custom_objs)
         model_lstm = load_model("lstm_j1.h5", custom_objects=custom_objs)
         model_cnn = load_model("cnn_j1_model_5 (2).h5", custom_objects=custom_objs)
@@ -221,7 +217,6 @@ else:
         st.stop()
 
     # --------- Entrées modèles ---------
-    # ML classiques
     features_ml = ["lag1", "lag7", "lag30", "day_of_week", "month"]
     X_last_ml = df_proc[features_ml].iloc[-1:].values.reshape(1, -1)
 
@@ -256,10 +251,8 @@ else:
     X_last_cnn = series_cnn[-window_cnn:].reshape(1, window_cnn, 1)
     cnn_j1 = float(model_cnn.predict(X_last_cnn)[0, 0])
 
-    # Valeur réelle courante
     y_last_real = float(df_daily["Global_active_power"].values[-1])
 
-    # Dictionnaire des prédictions
     pred_dict = {
         "Linear Regression": float(model_lr.predict(X_last_ml)[0]),
         "KNN": float(model_knn.predict(X_last_ml)[0]),
@@ -274,7 +267,6 @@ else:
         st.header("🤖 Prédictions J+1 par modèle")
         st.write(f"Dernière valeur réelle (J) : **{y_last_real:.4f}**")
 
-        # MSE / MAE sur le point J+1
         mse_mae = {}
         for name, val in pred_dict.items():
             mse = mean_squared_error([y_last_real], [val])
