@@ -224,15 +224,29 @@ elif section == "Prétraitement":
         st.subheader("Aperçu après création des lags / variables temporelles")
         st.dataframe(df_proc.head(), use_container_width=True)
 
+    # Histogrammes de toutes les features numériques
     with tab2:
-        st.subheader("Histogrammes des principales variables")
-        fig, axes = plt.subplots(len(numeric_cols), 1, figsize=(10, 8))
-        for i, col in enumerate(numeric_cols):
-            axes[i].hist(df_proc[col], bins=30, color="#60a5fa")
-            axes[i].set_title(f"Histogramme de {col}")
-        plt.tight_layout()
-        st.pyplot(fig)
+        st.subheader("Histogrammes des features")
+        all_numeric = df_proc.select_dtypes(include=[np.number]).columns.tolist()
+        selected_cols = st.multiselect(
+            "Choisir les features à afficher",
+            options=all_numeric,
+            default=all_numeric,
+        )
 
+        if selected_cols:
+            n = len(selected_cols)
+            fig, axes = plt.subplots(n, 1, figsize=(10, 3 * n), squeeze=False)
+            for i, col in enumerate(selected_cols):
+                ax = axes[i, 0]
+                ax.hist(df_proc[col], bins=30, color="#60a5fa")
+                ax.set_title(f"Histogramme de {col}")
+            plt.tight_layout()
+            st.pyplot(fig)
+        else:
+            st.info("Sélectionne au moins une feature pour afficher les histogrammes.")
+
+    # Lags & corrélation avec choix libre des séries
     with tab3:
         st.subheader("Évolution de la série et des lags")
         n_days = st.slider(
@@ -243,9 +257,11 @@ elif section == "Prétraitement":
             step=30,
         )
         df_view = df_proc.iloc[-n_days:]
+
+        all_numeric = df_proc.select_dtypes(include=[np.number]).columns.tolist()
         cols = st.multiselect(
             "Choisir les séries à afficher",
-            options=["Global_active_power", "lag1", "lag7", "lag30"],
+            options=all_numeric,
             default=["Global_active_power", "lag1", "lag7", "lag30"],
         )
         if cols:
