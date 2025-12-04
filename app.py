@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import load_model
+from tensorflow.keras.losses import MeanSquaredError
 import pickle
 import gzip
 
@@ -25,10 +26,9 @@ section = st.sidebar.radio(
 )
 
 # =============== CHARGER DATASET LOCAL ===============
-# On lit directement le fichier du repo : energy_daily_lags.csv.gz
 @st.cache_data
 def load_local_data():
-    # adapté à ton repo : fichier compressé .gz
+    # Fichier compressé présent dans ton repo
     with gzip.open("energy_daily_lags.csv.gz", "rt") as f:
         df = pd.read_csv(f, parse_dates=True, index_col=0)
     return df
@@ -39,7 +39,6 @@ if "Global_active_power" not in df.columns:
     st.error("La colonne 'Global_active_power' n'existe pas dans energy_daily_lags.csv.gz.")
     st.stop()
 
-# Copie pour prétraitement
 df_proc = df.copy()
 
 # =============== PREPROCESSING COMMUN ===============
@@ -71,7 +70,7 @@ if section == "📁 Dataset":
 # =============== SECTION : PRETRAITEMENT ===============
 elif section == "🧹 Prétraitement":
     st.header("🧹 Prétraitement des données")
-    st.write("Valeurs manquantes comblées (forward fill) et création des lags/calendrier.")
+    st.write("Valeurs manquantes comblées (forward fill) et création des lags / variables calendrier.")
     st.subheader("Aperçu des données prétraitées")
     st.dataframe(df_proc.head())
 
@@ -83,9 +82,12 @@ elif section == "🧹 Prétraitement":
     plt.tight_layout()
     st.pyplot(fig)
 
-# =============== CHARGEMENT MODELES (COMMUN) ===============
+# =============== CHARGEMENT MODELES (COMMUN AUX 2 DERNIERES SECTIONS) ===============
 else:
     try:
+        custom_objs = {"mse": MeanSquaredError()}
+
+        # Modèles ML
         with open("linear_regression.pkl", "rb") as f:
             model_lr = pickle.load(f)
         with open("knn.pkl", "rb") as f:
@@ -93,14 +95,17 @@ else:
         with open("random_forest.pkl", "rb") as f:
             model_rf = pickle.load(f)
 
-        model_mlp = load_model("mlp_best_j1.h5")
-        model_lstm = load_model("lstm_j1.h5")
-        model_cnn = load_model("cnn_j1_model_5 (2).h5")
+        # Modèles DL (en passant custom_objects pour corriger keras.metrics.mse)
+        model_mlp = load_model("mlp_best_j1.h5", custom_objects=custom_objs)
+        model_lstm = load_model("lstm_j1.h5", custom_objects=custom_objs)
+        model_cnn = load_model("cnn_j1_model_5 (2).h5", custom_objects=custom_objs)
+
+        st.success("✅ Modèles ML & DL chargés.")
     except Exception as e:
         st.error(f"Erreur lors du chargement des modèles : {e}")
         st.stop()
 
-    # préparer fenêtres
+    # Préparation des fenêtres
     features_ml = ["lag1", "lag7", "lag30", "day_of_week", "month"]
     X_last_ml = df_proc[features_ml].values[-1:].reshape(1, -1)
 
@@ -111,7 +116,7 @@ else:
     window_lstm = 60
     window_cnn = 90
     if len(series_scaled) < max(window_mlp, window_lstm, window_cnn):
-        st.error("Pas assez de points pour les fenêtres DL.")
+        st.error("Pas assez de points pour construire les fenêtres des modèles DL.")
         st.stop()
 
     X_last_mlp = series_scaled[-window_mlp:].reshape(1, window_mlp)
