@@ -325,7 +325,7 @@ else:
     max_val = df_proc["Global_active_power"].max()
     mlp_j1 = mlp_j1_norm * (max_val - min_val) + min_val
 
-    # LSTM (protégé try/except)
+    # LSTM (protégé)
     feature_cols_lstm = [
         "Global_reactive_power", "Voltage", "Global_intensity",
         "Sub_metering_1", "Sub_metering_2", "Sub_metering_3",
@@ -345,7 +345,7 @@ else:
         st.error(f"Erreur de prédiction LSTM (modèle ignoré) : {e}")
         lstm_j1 = np.nan
 
-    # CNN
+    # CNN (fenêtre standard)
     series_cnn = df_daily["Global_active_power"].values
     window_cnn = 90
     X_last_cnn = series_cnn[-window_cnn:].reshape(1, window_cnn, 1)
@@ -361,7 +361,6 @@ else:
         "LSTM": lstm_j1,
         "CNN": cnn_j1,
     }
-    # enlever LSTM si NaN
     pred_dict = {k: v for k, v in pred_dict.items() if not np.isnan(v)}
 
     # ----------------- PREDICTIONS -----------------
@@ -389,26 +388,36 @@ else:
 
         with col_b:
             sim_s1 = st.number_input(
-                "Sub_metering_1 (pour contexte)",
+                "Sub_metering_1 (contexte)",
                 value=float(df_proc["Sub_metering_1"].iloc[-1]),
             )
             sim_s2 = st.number_input(
-                "Sub_metering_2 (pour contexte)",
+                "Sub_metering_2 (contexte)",
                 value=float(df_proc["Sub_metering_2"].iloc[-1]),
             )
             sim_s3 = st.number_input(
-                "Sub_metering_3 (pour contexte)",
+                "Sub_metering_3 (contexte)",
                 value=float(df_proc["Sub_metering_3"].iloc[-1]),
             )
 
         if st.button("Lancer la simulation (CNN)"):
-            # le CNN utilise la même fenêtre de Global_active_power
             X_sim_cnn = series_cnn[-window_cnn:].reshape(1, window_cnn, 1)
             sim_cnn = float(model_cnn.predict(X_sim_cnn)[0, 0])
-            st.write("Prédiction CNN de Global_active_power pour ce scénario :")
-            st.metric("Prédiction scénario (CNN)", f"{sim_cnn:.4f}")
 
-        # MSE / MAE sur J+1
+            st.write("Prédiction CNN de Global_active_power pour ce scénario :")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Prédiction scénario (CNN)", f"{sim_cnn:.4f}")
+            with col2:
+                st.metric("Dernière valeur réelle observée", f"{y_last_real:.4f}")
+            with col3:
+                diff = sim_cnn - y_last_real
+                st.metric("Écart (CNN - réel)", f"{diff:.4f}")
+
+            cost_scenario = abs(diff) * price_kwh
+            st.write(f"Coût estimé de cet écart pour une journée : ≈ {cost_scenario:.4f} €")
+
+        # MSE / MAE J+1
         mse_mae = {}
         for name, val in pred_dict.items():
             mse = mean_squared_error([y_last_real], [val])
@@ -425,7 +434,6 @@ else:
             }
         )
 
-        # coût financier
         df_metrics["Coût_MAE_(€)"] = df_metrics["MAE"] * price_kwh
         best_mae_row = df_metrics.sort_values("MAE").iloc[0]
         worst_mae_row = df_metrics.sort_values("MAE").iloc[-1]
