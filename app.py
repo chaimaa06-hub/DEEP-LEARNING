@@ -82,7 +82,7 @@ def inject_futuristic_css() -> None:
 # ----------------- CONFIG GLOBALE -----------------
 st.set_page_config(page_title="Prédiction J+1 - ML & DL",
                    layout="wide",
-                   page_icon="")
+                   page_icon="⚡")
 inject_futuristic_css()
 
 st.title("Prédiction J+1 : ML & Deep Learning")
@@ -107,7 +107,7 @@ with st.sidebar:
     st.title("Menu")
     section = st.radio(
         "Choisir une vue :",
-        ["Accueil", "Dataset", "Prétraitement", " Prédictions modèles", "Comparaison modèles"],
+        ["Accueil", "Dataset", "Prétraitement", "Prédictions modèles", "Comparaison modèles"],
     )
     level = st.selectbox("Niveau de détail", ["Basique", "Avancé"])
     st.markdown("---")
@@ -142,7 +142,6 @@ scaler = MinMaxScaler()
 df_scaled = df_proc.copy()
 df_scaled[numeric_cols] = scaler.fit_transform(df_proc[numeric_cols])
 
-# palette par modèle
 color_map = {
     "Linear Regression": "#3b82f6",
     "KNN": "#22c55e",
@@ -154,7 +153,7 @@ color_map = {
 
 # ----------------- SECTION ACCUEIL -----------------
 if section == "Accueil":
-    st.header(" Vue d’ensemble du projet")
+    st.header("Vue d’ensemble du projet")
     col1, col2 = st.columns([2, 1])
 
     with col1:
@@ -167,10 +166,10 @@ if section == "Accueil":
             pour prédire la consommation électrique quotidienne (<b>Global_active_power</b>) à J+1.
             </p>
             <ul>
-              <li> <b>Dataset</b> : examen des données journalières</li>
-              <li> <b>Prétraitement</b> : lags, variables calendaires et normalisation</li>
-              <li> <b>Prédictions modèles</b> : estimation J+1 par modèle</li>
-              <li> <b>Comparaison modèles</b> : meilleur modèle et erreurs</li>
+              <li><b>Dataset</b> : examen des données journalières</li>
+              <li><b>Prétraitement</b> : lags, variables calendaires et normalisation</li>
+              <li><b>Prédictions modèles</b> : estimation J+1 par modèle</li>
+              <li><b>Comparaison modèles</b> : meilleur modèle et erreurs</li>
             </ul>
             </div>
             """,
@@ -191,7 +190,7 @@ if section == "Accueil":
 
 # ----------------- SECTION DATASET -----------------
 elif section == "Dataset":
-    st.header(" Dataset (depuis GitHub)")
+    st.header("Dataset (depuis GitHub)")
     col1, col2 = st.columns([2, 1])
 
     with col1:
@@ -216,10 +215,10 @@ elif section == "Dataset":
     st.line_chart(df_daily["Global_active_power"].iloc[-n_days_ds:])
 
 # ----------------- SECTION PRETRAITEMENT -----------------
-elif section == " Prétraitement":
-    st.header(" Prétraitement des données")
+elif section == "Prétraitement":
+    st.header("Prétraitement des données")
 
-    tab1, tab2, tab3 = st.tabs(["Aperçu", " Histogrammes", " Lags & corrélation"])
+    tab1, tab2, tab3 = st.tabs(["Aperçu", "Histogrammes", "Lags & corrélation"])
 
     with tab1:
         st.subheader("Aperçu après création des lags / variables temporelles")
@@ -273,7 +272,7 @@ elif section == " Prétraitement":
         plt.tight_layout()
         st.pyplot(fig3)
 
-# ----------------- MODELES (pour les 2 dernières sections) -----------------
+# ----------------- SECTIONS PREDICTIONS / COMPARAISON -----------------
 else:
     try:
         custom_objs = {"mse": MeanSquaredError()}
@@ -288,13 +287,10 @@ else:
         model_mlp = load_model("mlp_best_j1.h5", custom_objects=custom_objs)
         model_lstm = load_model("lstm_j1.h5", custom_objects=custom_objs)
         model_cnn = load_model("cnn_j1_model_5 (2).h5", custom_objects=custom_objs)
-
-        st.success("Modèles ML & DL chargés.")
     except Exception as e:
         st.error(f"Erreur lors du chargement des modèles : {e}")
         st.stop()
 
-    # Entrées modèles
     features_ml = ["lag1", "lag7", "lag30", "day_of_week", "month"]
     X_last_ml = df_proc[features_ml].iloc[-1:].values.reshape(1, -1)
 
@@ -337,9 +333,8 @@ else:
         "CNN": cnn_j1,
     }
 
-    # ----------------- SECTION PREDICTIONS -----------------
-    if section == " Prédictions modèles":
-        st.header(" Prédictions J+1 par modèle")
+    if section == "Prédictions modèles":
+        st.header("Prédictions J+1 par modèle")
         st.write(f"Dernière valeur réelle (J) : **{y_last_real:.4f}**")
 
         mse_mae = {}
@@ -363,7 +358,7 @@ else:
             best_row = df_metrics.sort_values("MAE").iloc[0]
             st.write(best_row.to_frame().T)
         else:
-            tab1, tab2, tab3 = st.tabs(["📋 Tableau", "📊 Erreurs", "🔎 Détail"])
+            tab1, tab2, tab3 = st.tabs(["Tableau", "Erreurs", "Détail"])
 
             with tab1:
                 st.subheader("Tableau des prédictions et erreurs")
@@ -396,9 +391,8 @@ else:
                         delta=f"MAE {mse_mae[name]['MAE']:.4f}",
                     )
 
-    # ----------------- SECTION COMPARAISON -----------------
-    elif section == "📈 Comparaison modèles":
-        st.header("📈 Comparaison globale des modèles")
+    elif section == "Comparaison modèles":
+        st.header("Comparaison globale des modèles")
 
         df_compare = pd.DataFrame({
             "Model": list(pred_dict.keys()),
