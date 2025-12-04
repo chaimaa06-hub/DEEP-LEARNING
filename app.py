@@ -231,7 +231,6 @@ elif section == "Prétraitement":
         st.subheader("Aperçu après création des lags / variables temporelles")
         st.dataframe(df_proc.head(), use_container_width=True)
 
-    # Histogrammes toutes features
     with tab2:
         st.subheader("Histogrammes des features")
         all_numeric = df_proc.select_dtypes(include=[np.number]).columns.tolist()
@@ -252,7 +251,6 @@ elif section == "Prétraitement":
         else:
             st.info("Sélectionne au moins une feature pour afficher les histogrammes.")
 
-    # Lags & corrélation
     with tab3:
         st.subheader("Évolution de la série et des lags")
         n_days = st.slider(
@@ -313,9 +311,11 @@ else:
         st.error(f"Erreur lors du chargement des modèles : {e}")
         st.stop()
 
+    # ML classiques
     features_ml = ["lag1", "lag7", "lag30", "day_of_week", "month"]
     X_last_ml = df_proc[features_ml].iloc[-1:].values.reshape(1, -1)
 
+    # MLP
     series_mlp = df_scaled["Global_active_power"].values
     window_mlp = 30
     X_last_mlp = series_mlp[-window_mlp:].reshape(1, window_mlp)
@@ -325,6 +325,7 @@ else:
     max_val = df_proc["Global_active_power"].max()
     mlp_j1 = mlp_j1_norm * (max_val - min_val) + min_val
 
+    # LSTM (protégé try/except)
     feature_cols_lstm = [
         "Global_reactive_power", "Voltage", "Global_intensity",
         "Sub_metering_1", "Sub_metering_2", "Sub_metering_3",
@@ -337,8 +338,14 @@ else:
         .values
         .reshape(1, window_lstm, len(feature_cols_lstm))
     )
-    lstm_j1 = float(model_lstm.predict(X_last_lstm)[0, 0])
+    try:
+        lstm_pred = model_lstm.predict(X_last_lstm)
+        lstm_j1 = float(lstm_pred[0, 0])
+    except Exception as e:
+        st.error(f"Erreur de prédiction LSTM (modèle ignoré) : {e}")
+        lstm_j1 = np.nan
 
+    # CNN
     series_cnn = df_daily["Global_active_power"].values
     window_cnn = 90
     X_last_cnn = series_cnn[-window_cnn:].reshape(1, window_cnn, 1)
@@ -354,17 +361,19 @@ else:
         "LSTM": lstm_j1,
         "CNN": cnn_j1,
     }
+    # enlever LSTM si NaN
+    pred_dict = {k: v for k, v in pred_dict.items() if not np.isnan(v)}
 
     # ----------------- PREDICTIONS -----------------
     if section == "Prédictions modèles":
         st.header("Prédictions J+1 par modèle")
         st.write(f"Dernière valeur réelle (J) : **{y_last_real:.4f}**")
 
-        # Scénario futur
+        # Scénario futur – CNN uniquement
         st.markdown("---")
-        st.subheader("Simulation d'une journée future (scénario métier)")
+        st.subheader("Simulation d'une journée future (scénario métier – CNN)")
 
-        col_a, col_b, col_c = st.columns(3)
+        col_a, col_b = st.columns(2)
 
         with col_a:
             sim_day_of_week = st.selectbox(
@@ -377,81 +386,29 @@ else:
                 options=list(range(1, 13)),
                 index=0,
             )
+
         with col_b:
-            sim_gr = st.number_input(
-                "Global_reactive_power",
-                value=float(df_proc["Global_reactive_power"].iloc[-1]),
-            )
-            sim_volt = st.number_input(
-                "Voltage",
-                value=float(df_proc["Voltage"].iloc[-1]),
-            )
-            sim_int = st.number_input(
-                "Global_intensity",
-                value=float(df_proc["Global_intensity"].iloc[-1]),
-            )
-        with col_c:
             sim_s1 = st.number_input(
-                "Sub_metering_1",
+                "Sub_metering_1 (pour contexte)",
                 value=float(df_proc["Sub_metering_1"].iloc[-1]),
             )
             sim_s2 = st.number_input(
-                "Sub_metering_2",
+                "Sub_metering_2 (pour contexte)",
                 value=float(df_proc["Sub_metering_2"].iloc[-1]),
             )
             sim_s3 = st.number_input(
-                "Sub_metering_3",
+                "Sub_metering_3 (pour contexte)",
                 value=float(df_proc["Sub_metering_3"].iloc[-1]),
             )
 
-        sim_is_weekend = 1 if sim_day_of_week in [5, 6] else 0
+        if st.button("Lancer la simulation (CNN)"):
+            # le CNN utilise la même fenêtre de Global_active_power
+            X_sim_cnn = series_cnn[-window_cnn:].reshape(1, window_cnn, 1)
+            sim_cnn = float(model_cnn.predict(X_sim_cnn)[0, 0])
+            st.write("Prédiction CNN de Global_active_power pour ce scénario :")
+            st.metric("Prédiction scénario (CNN)", f"{sim_cnn:.4f}")
 
-        if st.button("Lancer la simulation de scénario futur"):
-            last_row = df_proc.iloc[-1]
-            X_sim_ml = np.array([[
-                last_row["lag1"],
-                last_row["lag7"],
-                last_row["lag30"],
-                sim_day_of_week,
-                sim_month,
-            ]])
-
-            sim_lr = float(model_lr.predict(X_sim_ml)[0])
-            sim_knn = float(model_knn.predict(X_sim_ml)[0])
-            sim_rf = float(model_rf.predict(X_sim_ml)[0])
-
-            X_sim_lstm = df_proc[feature_cols_lstm].iloc[-window_lstm:].copy()
-            X_sim_lstm.iloc[-1] = [
-                sim_gr, sim_volt, sim_int,
-                sim_s1, sim_s2, sim_s3,
-                last_row["sub_metering_4"],
-                sim_day_of_week, sim_is_weekend
-            ]
-            X_sim_lstm = X_sim_lstm.values.reshape(1, window_lstm, len(feature_cols_lstm))
-            sim_lstm = float(model_lstm.predict(X_sim_lstm)[0, 0])
-
-            sim_mlp = mlp_j1
-            sim_cnn = cnn_j1
-
-            sim_dict = {
-                "Linear Regression": sim_lr,
-                "KNN": sim_knn,
-                "Random Forest": sim_rf,
-                "MLP": sim_mlp,
-                "LSTM": sim_lstm,
-                "CNN": sim_cnn,
-            }
-
-            st.write("Prédiction de Global_active_power pour ce scénario :")
-            st.dataframe(
-                pd.DataFrame(
-                    {"Modèle": list(sim_dict.keys()),
-                     "Prédiction scénario": list(sim_dict.values())}
-                ),
-                use_container_width=True,
-            )
-
-        # MSE / MAE J+1
+        # MSE / MAE sur J+1
         mse_mae = {}
         for name, val in pred_dict.items():
             mse = mean_squared_error([y_last_real], [val])
@@ -468,7 +425,7 @@ else:
             }
         )
 
-        # Coût financier
+        # coût financier
         df_metrics["Coût_MAE_(€)"] = df_metrics["MAE"] * price_kwh
         best_mae_row = df_metrics.sort_values("MAE").iloc[0]
         worst_mae_row = df_metrics.sort_values("MAE").iloc[-1]
