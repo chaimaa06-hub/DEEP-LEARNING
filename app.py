@@ -82,7 +82,7 @@ def inject_futuristic_css() -> None:
 # ----------------- CONFIG GLOBALE -----------------
 st.set_page_config(page_title="Prédiction J+1 - ML & DL",
                    layout="wide",
-                   page_icon="⚡")
+                   page_icon="")
 inject_futuristic_css()
 
 st.title("Prédiction J+1 : ML & Deep Learning")
@@ -104,10 +104,10 @@ if "Global_active_power" not in df_daily.columns:
 
 # ----------------- SIDEBAR -----------------
 with st.sidebar:
-    st.title("⚡ Menu")
+    st.title("Menu")
     section = st.radio(
         "Choisir une vue :",
-        ["Accueil", "📁 Dataset", "Prétraitement", " Prédictions modèles", "📈 Comparaison modèles"],
+        ["Accueil", "Dataset", "Prétraitement", " Prédictions modèles", "Comparaison modèles"],
     )
     level = st.selectbox("Niveau de détail", ["Basique", "Avancé"])
     st.markdown("---")
@@ -167,10 +167,10 @@ if section == "Accueil":
             pour prédire la consommation électrique quotidienne (<b>Global_active_power</b>) à J+1.
             </p>
             <ul>
-              <li>📁 <b>Dataset</b> : examen des données journalières</li>
+              <li> <b>Dataset</b> : examen des données journalières</li>
               <li> <b>Prétraitement</b> : lags, variables calendaires et normalisation</li>
               <li> <b>Prédictions modèles</b> : estimation J+1 par modèle</li>
-              <li>📈 <b>Comparaison modèles</b> : meilleur modèle et erreurs</li>
+              <li> <b>Comparaison modèles</b> : meilleur modèle et erreurs</li>
             </ul>
             </div>
             """,
@@ -190,8 +190,8 @@ if section == "Accueil":
         )
 
 # ----------------- SECTION DATASET -----------------
-elif section == "📁 Dataset":
-    st.header("📁 Dataset (depuis GitHub)")
+elif section == "Dataset":
+    st.header(" Dataset (depuis GitHub)")
     col1, col2 = st.columns([2, 1])
 
     with col1:
@@ -219,7 +219,7 @@ elif section == "📁 Dataset":
 elif section == " Prétraitement":
     st.header(" Prétraitement des données")
 
-    tab1, tab2, tab3 = st.tabs(["📋 Aperçu", "📊 Histogrammes", "📈 Lags & corrélation"])
+    tab1, tab2, tab3 = st.tabs(["Aperçu", " Histogrammes", " Lags & corrélation"])
 
     with tab1:
         st.subheader("Aperçu après création des lags / variables temporelles")
