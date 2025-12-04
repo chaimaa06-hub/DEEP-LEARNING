@@ -110,6 +110,13 @@ with st.sidebar:
         ["Accueil", "Dataset", "Prétraitement", "Prédictions modèles", "Comparaison modèles"],
     )
     level = st.selectbox("Niveau de détail", ["Basique", "Avancé"])
+    price_kwh = st.slider(
+        "Prix de l'électricité (€/kWh)",
+        min_value=0.05,
+        max_value=0.50,
+        value=0.25,
+        step=0.01,
+    )
     st.markdown("---")
     st.write(f"Nombre de jours : **{len(df_daily)}**")
 
@@ -224,7 +231,7 @@ elif section == "Prétraitement":
         st.subheader("Aperçu après création des lags / variables temporelles")
         st.dataframe(df_proc.head(), use_container_width=True)
 
-    # Histogrammes de toutes les features numériques
+    # Histogrammes toutes features
     with tab2:
         st.subheader("Histogrammes des features")
         all_numeric = df_proc.select_dtypes(include=[np.number]).columns.tolist()
@@ -233,7 +240,6 @@ elif section == "Prétraitement":
             options=all_numeric,
             default=all_numeric,
         )
-
         if selected_cols:
             n = len(selected_cols)
             fig, axes = plt.subplots(n, 1, figsize=(10, 3 * n), squeeze=False)
@@ -246,7 +252,7 @@ elif section == "Prétraitement":
         else:
             st.info("Sélectionne au moins une feature pour afficher les histogrammes.")
 
-    # Lags & corrélation avec choix libre des séries
+    # Lags & corrélation
     with tab3:
         st.subheader("Évolution de la série et des lags")
         n_days = st.slider(
@@ -349,10 +355,103 @@ else:
         "CNN": cnn_j1,
     }
 
+    # ----------------- PREDICTIONS -----------------
     if section == "Prédictions modèles":
         st.header("Prédictions J+1 par modèle")
         st.write(f"Dernière valeur réelle (J) : **{y_last_real:.4f}**")
 
+        # Scénario futur
+        st.markdown("---")
+        st.subheader("Simulation d'une journée future (scénario métier)")
+
+        col_a, col_b, col_c = st.columns(3)
+
+        with col_a:
+            sim_day_of_week = st.selectbox(
+                "Jour de la semaine (0=lundi)",
+                options=list(range(7)),
+                index=0,
+            )
+            sim_month = st.selectbox(
+                "Mois",
+                options=list(range(1, 13)),
+                index=0,
+            )
+        with col_b:
+            sim_gr = st.number_input(
+                "Global_reactive_power",
+                value=float(df_proc["Global_reactive_power"].iloc[-1]),
+            )
+            sim_volt = st.number_input(
+                "Voltage",
+                value=float(df_proc["Voltage"].iloc[-1]),
+            )
+            sim_int = st.number_input(
+                "Global_intensity",
+                value=float(df_proc["Global_intensity"].iloc[-1]),
+            )
+        with col_c:
+            sim_s1 = st.number_input(
+                "Sub_metering_1",
+                value=float(df_proc["Sub_metering_1"].iloc[-1]),
+            )
+            sim_s2 = st.number_input(
+                "Sub_metering_2",
+                value=float(df_proc["Sub_metering_2"].iloc[-1]),
+            )
+            sim_s3 = st.number_input(
+                "Sub_metering_3",
+                value=float(df_proc["Sub_metering_3"].iloc[-1]),
+            )
+
+        sim_is_weekend = 1 if sim_day_of_week in [5, 6] else 0
+
+        if st.button("Lancer la simulation de scénario futur"):
+            last_row = df_proc.iloc[-1]
+            X_sim_ml = np.array([[
+                last_row["lag1"],
+                last_row["lag7"],
+                last_row["lag30"],
+                sim_day_of_week,
+                sim_month,
+            ]])
+
+            sim_lr = float(model_lr.predict(X_sim_ml)[0])
+            sim_knn = float(model_knn.predict(X_sim_ml)[0])
+            sim_rf = float(model_rf.predict(X_sim_ml)[0])
+
+            X_sim_lstm = df_proc[feature_cols_lstm].iloc[-window_lstm:].copy()
+            X_sim_lstm.iloc[-1] = [
+                sim_gr, sim_volt, sim_int,
+                sim_s1, sim_s2, sim_s3,
+                last_row["sub_metering_4"],
+                sim_day_of_week, sim_is_weekend
+            ]
+            X_sim_lstm = X_sim_lstm.values.reshape(1, window_lstm, len(feature_cols_lstm))
+            sim_lstm = float(model_lstm.predict(X_sim_lstm)[0, 0])
+
+            sim_mlp = mlp_j1
+            sim_cnn = cnn_j1
+
+            sim_dict = {
+                "Linear Regression": sim_lr,
+                "KNN": sim_knn,
+                "Random Forest": sim_rf,
+                "MLP": sim_mlp,
+                "LSTM": sim_lstm,
+                "CNN": sim_cnn,
+            }
+
+            st.write("Prédiction de Global_active_power pour ce scénario :")
+            st.dataframe(
+                pd.DataFrame(
+                    {"Modèle": list(sim_dict.keys()),
+                     "Prédiction scénario": list(sim_dict.values())}
+                ),
+                use_container_width=True,
+            )
+
+        # MSE / MAE J+1
         mse_mae = {}
         for name, val in pred_dict.items():
             mse = mean_squared_error([y_last_real], [val])
@@ -367,6 +466,27 @@ else:
                 "MSE": [mse_mae[m]["MSE"] for m in pred_dict.keys()],
                 "MAE": [mse_mae[m]["MAE"] for m in pred_dict.keys()],
             }
+        )
+
+        # Coût financier
+        df_metrics["Coût_MAE_(€)"] = df_metrics["MAE"] * price_kwh
+        best_mae_row = df_metrics.sort_values("MAE").iloc[0]
+        worst_mae_row = df_metrics.sort_values("MAE").iloc[-1]
+
+        st.markdown(
+            f"""
+            <div class="glass-card">
+              <h3>Impact financier de l'erreur de prévision</h3>
+              <p><b>Prix de l'électricité :</b> {price_kwh:.2f} €/kWh</p>
+              <p><b>Meilleur modèle :</b> {best_mae_row['Model']} –
+                 MAE = {best_mae_row['MAE']:.4f},
+                 soit ≈ {best_mae_row['Coût_MAE_(€)']:.4f} € d'erreur moyenne par jour.</p>
+              <p><b>Pire modèle :</b> {worst_mae_row['Model']} –
+                 MAE = {worst_mae_row['MAE']:.4f},
+                 soit ≈ {worst_mae_row['Coût_MAE_(€)']:.4f} € d'erreur moyenne par jour.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
         if level == "Basique":
@@ -407,6 +527,7 @@ else:
                         delta=f"MAE {mse_mae[name]['MAE']:.4f}",
                     )
 
+    # ----------------- COMPARAISON -----------------
     elif section == "Comparaison modèles":
         st.header("Comparaison globale des modèles")
 
