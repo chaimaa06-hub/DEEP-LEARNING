@@ -184,12 +184,61 @@ else:
         "CNN": cnn_j1
     }
 
-    # =============== SECTION PREDICTIONS ===============
+        # =============== SECTION PREDICTIONS ===============
     if section == "🤖 Prédictions modèles":
+        from sklearn.metrics import mean_squared_error, mean_absolute_error
+
         st.header("🤖 Prédictions J+1 par modèle")
         st.write(f"Dernière valeur réelle (J) : **{y_last_real:.4f}**")
+
+        # --- calcul MSE / MAE par modèle (sur le point J+1, donc erreur ponctuelle) ---
+        mse_mae = {}
         for name, val in pred_dict.items():
-            st.write(f"**{name}** : {val:.4f}")
+            mse = mean_squared_error([y_last_real], [val])
+            mae = mean_absolute_error([y_last_real], [val])
+            mse_mae[name] = {"MSE": mse, "MAE": mae}
+
+        # tableau récapitulatif
+        df_metrics = pd.DataFrame(
+            {
+                "Model": list(pred_dict.keys()),
+                "Prediction J+1": list(pred_dict.values()),
+                "Real J+1": [y_last_real] * len(pred_dict),
+                "MSE": [mse_mae[m]["MSE"] for m in pred_dict.keys()],
+                "MAE": [mse_mae[m]["MAE"] for m in pred_dict.keys()],
+            }
+        )
+        st.subheader("Tableau des prédictions et erreurs")
+        st.dataframe(df_metrics)
+
+        # barplots MSE / MAE
+        st.subheader("Visualisation des erreurs MSE / MAE")
+
+        models_list = list(pred_dict.keys())
+        mse_vals = [mse_mae[m]["MSE"] for m in models_list]
+        mae_vals = [mse_mae[m]["MAE"] for m in models_list]
+
+        fig_err, ax_err = plt.subplots(figsize=(8, 4))
+        x = np.arange(len(models_list))
+        ax_err.bar(x - 0.15, mse_vals, width=0.3, label="MSE")
+        ax_err.bar(x + 0.15, mae_vals, width=0.3, label="MAE")
+        ax_err.set_xticks(x)
+        ax_err.set_xticklabels(models_list, rotation=45, ha="right")
+        ax_err.set_ylabel("Erreur")
+        ax_err.legend()
+        ax_err.grid(True, alpha=0.3)
+        plt.tight_layout()
+        st.pyplot(fig_err)
+
+        # affichage texte simple
+        st.subheader("Détail par modèle")
+        for name in models_list:
+            st.write(
+                f"**{name}** → "
+                f"Prédiction = {pred_dict[name]:.4f} | "
+                f"MSE = {mse_mae[name]['MSE']:.6f} | "
+                f"MAE = {mse_mae[name]['MAE']:.6f}"
+            )
 
     # =============== SECTION COMPARAISON ===============
     elif section == "📈 Comparaison modèles":
