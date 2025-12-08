@@ -574,3 +574,4 @@ else:
         ax_bar.grid(True, alpha=0.3)
         plt.tight_layout()
         st.pyplot(fig_bar)
+
